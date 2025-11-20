@@ -1,0 +1,5 @@
+export enum MARKET {
+  MARKET_ID_STO = 'HOSE',
+  MARKET_ID_STX = 'HNX',
+  MARKET_ID_UPX = 'UPCOM',
+}
