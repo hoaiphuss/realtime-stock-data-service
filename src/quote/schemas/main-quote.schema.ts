@@ -28,6 +28,7 @@ export class MainQuote {
   @Prop() TotalPutVal?: number;
   @Prop() Row?: number;
   @Prop() Rows?: number;
+  @Prop() MarketID?: string;
 }
 
 export const MainQuoteSchema = SchemaFactory.createForClass(MainQuote);

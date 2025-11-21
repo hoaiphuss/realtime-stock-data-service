@@ -20,6 +20,7 @@ export const fieldMap: Record<keyof MainQuote, keyof DnseQuote | null> = {
   ChangeRatio: 'changedRatio',
   ClosePrice: 'matchPrice',
   BasicPrice: 'referencePrice',
+  MarketID: 'marketId',
 
   // những key MainQuote không khớp
   KLCPNY: null,
