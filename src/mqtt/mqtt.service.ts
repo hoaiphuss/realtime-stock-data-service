@@ -12,7 +12,7 @@ import { QuoteService } from 'src/quote/services/quote.service';
 
 @Injectable()
 export class MqttService implements OnModuleInit {
-  // instance mqtt hiện tại || null
+  // MQTT client instance now
   private client: MqttClient | null = null;
   private readonly logger = new Logger(MqttService.name);
   private lastMessageTime = Date.now();
@@ -27,7 +27,7 @@ export class MqttService implements OnModuleInit {
     await this.connectToBroker();
   }
 
-  /** Connect đến broker */
+  /** Connect Broker */
   private async connectToBroker() {
     try {
       const { token, investorId } = await this.authService.getValidToken();
@@ -53,26 +53,25 @@ export class MqttService implements OnModuleInit {
     }
   }
 
-  /** Xử lý sự kiện MQTT */
+  /** Handle MQTT events */
   private registerEvents() {
     if (!this.client) return;
 
     this.client.on('connect', () => {
-      console.log('✅ MQTT connected');
+      console.log('MQTT connected');
       this.client!.subscribe(this.configService.get<string>('TOPIC') || '');
     });
 
     this.client.on('close', () => {
-      console.warn('⚠️ MQTT connection closed');
-      //   this.scheduleReconnect();
+      console.warn('MQTT connection closed');
     });
 
     this.client.on('offline', () => {
-      console.warn('📡 MQTT offline');
+      console.warn('MQTT offline');
     });
 
     this.client.on('error', (err) => {
-      console.error('❌ MQTT Error:', err.message);
+      console.error('MQTT Error:', err.message);
       this.client?.end(true);
     });
 
@@ -80,34 +79,10 @@ export class MqttService implements OnModuleInit {
       this.lastMessageTime = Date.now();
       try {
         const raw = JSON.parse(message.toString()) as Partial<DnseQuote>;
-        const cleaned = this.normalizeQuote(raw);
-
-        void this.quoteService.saveQuoteIfChanged(cleaned);
+        void this.quoteService.saveQuoteIfChanged(raw);
       } catch (err) {
-        console.error('📛 Error processing message:', err);
+        console.error('Error processing message:', err);
       }
     });
-  }
-
-  private normalizeQuote(raw: Partial<DnseQuote>): Partial<DnseQuote> {
-    const toNumber = (val: any) => {
-      const n = Number(val);
-      return isNaN(n) ? undefined : n;
-    };
-    return {
-      ...raw,
-      matchPrice: toNumber(raw.matchPrice),
-      matchQuantity: toNumber(raw.matchQuantity),
-      totalVolumeTraded: toNumber(raw.totalVolumeTraded),
-      listedShares: toNumber(raw.listedShares),
-      referencePrice: toNumber(raw.referencePrice),
-      openPrice: toNumber(raw.openPrice),
-      closePrice: toNumber(raw.closePrice),
-      averagePrice: toNumber(raw.averagePrice),
-      highLimitPrice: toNumber(raw.highLimitPrice),
-      lowLimitPrice: toNumber(raw.lowLimitPrice),
-      changedValue: toNumber(raw.changedValue),
-      changedRatio: toNumber(raw.changedRatio),
-    } as Partial<DnseQuote>;
   }
 }

@@ -3,7 +3,7 @@ import { DnseQuote } from '../schemas/dnse-quote.schema';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
 interface CachedQuote {
-  data: DnseQuote;
+  data: Partial<DnseQuote>;
   updatedAt: number;
 }
 
@@ -21,7 +21,7 @@ export class QuoteDnseCacheService {
    * get data from map with symbol
    * get method not check TTL - if expired entry but not cleanupCache() (cron not run yet), get method still return old data
    */
-  get(symbol: string): DnseQuote | undefined {
+  get(symbol: string): Partial<DnseQuote> | undefined {
     const cached = this.latestCache.get(symbol);
     if (!cached) return undefined;
 
@@ -34,7 +34,7 @@ export class QuoteDnseCacheService {
   }
 
   /** save data into caching with updatedAt = new Date() */
-  set(symbol: string, data: DnseQuote) {
+  set(symbol: string, data: Partial<DnseQuote>): void {
     this.latestCache.set(symbol, { data, updatedAt: Date.now() });
   }
 
