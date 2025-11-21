@@ -75,35 +75,67 @@ export class QuoteService {
       cached.changedRatio !== data.changedRatio;
 
     // Quyết định có cần lưu hay không
-    let shouldSave = isDnseChanged;
+    const shouldSaveDnse = isDnseChanged;
+    let shouldSaveMain = isDnseChanged;
 
     // Nếu DnseQuote chưa thay đổi, check MainQuote tồn tại không
-    if (!shouldSave) {
-      const mainExists = await this.mainQuoteModel.exists({ StockCode });
-      if (!mainExists) shouldSave = true;
+    if (!isDnseChanged) {
+      const oldMain = await this.mainQuoteModel.findOne({ StockCode }).lean();
+
+      if (!oldMain) {
+        shouldSaveMain = true; // Main chưa tồn tại → upsert
+      } else {
+        // So sánh field MainQuote với mainQuote mới
+        const importantMainFields = [
+          'LastPrice',
+          'TotalVol',
+          'Change',
+          'ChangeRatio',
+        ];
+
+        for (const key of importantMainFields) {
+          if (mainQuote[key] !== oldMain[key]) {
+            console.log(
+              `MainQuote field ${key} changed: ${oldMain[key]} -> ${mainQuote[key]}`,
+            );
+            shouldSaveMain = true;
+            break;
+          }
+        }
+      }
     }
 
-    if (!shouldSave) return;
+    if (!shouldSaveDnse && !shouldSaveMain) return;
 
-    // Upsert cả hai collection
-    await Promise.all([
-      this.dnseQuoteModel.updateOne(
-        { symbol },
-        { $set: data },
-        { upsert: true },
-      ),
-      this.mainQuoteModel.updateOne(
-        { StockCode },
-        { $set: mainQuote },
-        { upsert: true },
-      ),
-    ]);
+    const ops: Promise<any>[] = [];
+    if (shouldSaveDnse) {
+      ops.push(
+        this.dnseQuoteModel.updateOne(
+          { symbol },
+          { $set: data },
+          { upsert: true },
+        ),
+      );
+    }
+
+    // Upsert MainQuote nếu cần
+    if (shouldSaveMain) {
+      ops.push(
+        this.mainQuoteModel.updateOne(
+          { StockCode },
+          { $set: mainQuote },
+          { upsert: true },
+        ),
+      );
+    }
+
+    await Promise.all(ops);
 
     // Cập nhật lại cache DnseQuote
     this.quoteCacheService.set(symbol, data);
 
     this.logger.debug(
-      `Saved quote for ${symbol} (Dnse changed: ${isDnseChanged}, MainQuote existed: ${!shouldSave ? 'yes' : 'no'})`,
+      `Saved quote for ${symbol} (Dnse changed: ${isDnseChanged}, MainQuote changed: ${shouldSaveMain})`,
     );
   }
 }
