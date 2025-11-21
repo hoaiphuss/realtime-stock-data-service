@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { DnseQuote, DnseQuoteSchema } from './schemas/dnse-quote.schema';
 import { MainQuote, MainQuoteSchema } from './schemas/main-quote.schema';
 import { QuoteService } from './services/quote.service';
+import { QuoteDnseCacheService } from './services/quote-cache.service';
 
 @Module({
   imports: [
@@ -11,7 +12,7 @@ import { QuoteService } from './services/quote.service';
       { name: MainQuote.name, schema: MainQuoteSchema },
     ]),
   ],
-  providers: [QuoteService],
+  providers: [QuoteService, QuoteDnseCacheService],
   exports: [QuoteService],
 })
 export class QuoteModule {}
