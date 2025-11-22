@@ -21,6 +21,9 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
   private client: MqttClient | null = null;
   private readonly logger = new Logger(MqttService.name);
 
+  private lastAlertSent: Record<string, number> = {};
+  private readonly alertCooldown = 5 * 60 * 1000; // 10 phút
+
   // health & reconnect
   private lastMessageTime = Date.now();
   private healthInterval: NodeJS.Timeout | null = null;
@@ -122,14 +125,12 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
         // threshold: 15 minutes without a message
         if (diff > 15 * 60 * 1000) {
           // fire-and-forget but log errors inside service if they occur
-          void this.alertService
-            .sendError(
-              'MQTT Health Check',
-              `No MQTT messages for ${Math.round(diff / 60000)} minutes. Forcing reconnect.`,
-            )
-            .catch((err) =>
-              this.logger.error('AlertService sendError failed', err),
-            );
+          void this.safeSendAlert(
+            'MQTT Health Check',
+            `No MQTT messages for ${Math.round(diff / 60000)} minutes. Forcing reconnect.`,
+          ).catch((err) =>
+            this.logger.error('AlertService sendError failed', err),
+          );
 
           // force reconnect (async) - intentionally fire-and-forget here
           void this.forceReconnect().catch((err) =>
@@ -262,11 +263,10 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
           : String(rawErr);
 
       // send alert but don't block flow if mail fails
-      void this.alertService
-        .sendError('MQTT Connect Error', errMessage)
-        .catch((e) =>
-          this.logger.error('Failed to send connect error alert', e),
-        );
+      void this.safeSendAlert(
+        'MQTT Connection Error',
+        `Failed to connect to MQTT broker:\n\n${errMessage}.`,
+      );
 
       // schedule reconnect with backoff (if in trading hours)
       this.scheduleReconnect();
@@ -274,6 +274,25 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
       this.logger.error('Error during connectToBroker', rawErr);
     } finally {
       this.isConnecting = false;
+    }
+  }
+
+  private async safeSendAlert(type: string, message: string) {
+    const now = Date.now();
+    const lastSent = this.lastAlertSent[type] ?? 0;
+    const addMessage = `Alert "${type}" skipped (cooldown). Will send again after 5 minutes if issue persists.`;
+
+    if (now - lastSent < this.alertCooldown) {
+      this.logger.warn(addMessage);
+      return;
+    }
+
+    this.lastAlertSent[type] = now;
+
+    try {
+      await this.alertService.sendError(type, message + `\n\n${addMessage}`);
+    } catch (err) {
+      this.logger.error(`Failed to send alert: ${type}`, err);
     }
   }
 }
