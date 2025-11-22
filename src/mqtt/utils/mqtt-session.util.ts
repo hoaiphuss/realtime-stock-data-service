@@ -10,7 +10,7 @@ export const isTradingTime = (): boolean => {
   if (day === 0 || day === 6) return false;
 
   const minutesNow = now.getHours() * 60 + now.getMinutes();
-  return true;
+  // return true;
   return tradingSessions.some((session) => {
     const start = session.start.h * 60 + session.start.m;
     const end = session.end.h * 60 + session.end.m;
