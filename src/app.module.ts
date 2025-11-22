@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { QuoteModule } from './quote/quote.module';
 import { MqttModule } from './mqtt/mqtt.module';
+import { AppMailerModule } from './mailer/mailer.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { MqttModule } from './mqtt/mqtt.module';
     ScheduleModule.forRoot(),
     QuoteModule,
     MqttModule,
+    AppMailerModule,
   ],
   controllers: [AppController],
   providers: [AppService],
