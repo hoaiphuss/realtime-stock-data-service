@@ -21,6 +21,11 @@ export class MqttConnectionManager {
   private reconnectDelay = 5000;
   private readonly reconnectMax = 15 * 60 * 1000;
 
+  // ---- Watchdog: detect no data ----
+  private lastMessageTime = Date.now();
+  private watchdogTimer: NodeJS.Timeout | null = null;
+  private readonly MESSAGE_TIMEOUT = 5 * 1000; // 30s không có message sẽ cảnh báo
+
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
@@ -30,7 +35,6 @@ export class MqttConnectionManager {
   ) {}
 
   async connect() {
-    // ensure only try to connect in trading hours
     if (!isTradingTime()) {
       await this.mqttAllertService.send(
         'MQTT Connect Skipped',
@@ -40,7 +44,6 @@ export class MqttConnectionManager {
       return;
     }
 
-    // prevent concurrent connects
     if (this.isConnecting) {
       this.logger.debug('Connect already in progress, skipping duplicate call');
       return;
@@ -74,38 +77,62 @@ export class MqttConnectionManager {
 
       this.client = connect(brokerUrl, options);
 
-      // register events: provide onMessage that updates lastMessageTime
+      // register events with message timestamp update
       registerMqttEvents(
         this.client,
         topic ?? '',
         this.logger,
-        (json) =>
-          // fire-and-forget the save (it returns Promise)
-          void this.quoteService.saveQuoteIfChanged(json as Partial<DnseQuote>),
-        // reconnect callback -> schedule backoff reconnect
+        (json) => {
+          this.lastMessageTime = Date.now(); // update watchdog
+          void this.quoteService.saveQuoteIfChanged(json as Partial<DnseQuote>);
+        },
         () => this.scheduleReconnect(),
       );
 
-      // reset reconnect delay to initial so next failures start small
+      // start watchdog timer
+      this.startWatchdog();
+
       this.reconnectDelay = 5000;
       this.logger.log('🚀 MQTT connected');
     } catch (err) {
-      // ensure we pass useful error info to alert
       const errMessage =
         err instanceof Error ? (err.stack ?? err.message) : String(err);
 
-      // send alert but don't block flow if mail fails
       await this.alertService.send(
         'MQTT Connection Error',
         `Failed to connect to MQTT broker:\n\n${errMessage}.`,
         ALERT_TIME_GAP.TEN_MINUTE,
       );
 
-      // schedule reconnect with backoff (if in trading hours)
       this.scheduleReconnect();
     } finally {
       this.isConnecting = false;
     }
+  }
+
+  // ---- WATCHDOG: detect missing data ----
+  private startWatchdog() {
+    if (this.watchdogTimer) clearInterval(this.watchdogTimer);
+
+    this.watchdogTimer = setInterval(async () => {
+      if (!isTradingTime()) return;
+
+      const now = Date.now();
+      const gap = now - this.lastMessageTime;
+
+      if (gap > this.MESSAGE_TIMEOUT) {
+        this.logger.warn(`⚠️ No MQTT data for ${gap / 1000}s`);
+
+        await this.alertService.send(
+          'MQTT No Data Warning',
+          `No MQTT data received for ${Math.floor(gap / 1000)} seconds.
+The broker may have stopped sending data or the TOPIC might have changed.`,
+          ALERT_TIME_GAP.FIVE_MINUTE,
+        );
+
+        this.scheduleReconnect(); // reconnect ngay khi mất data
+      }
+    }, 10_000); // check mỗi 10s
   }
 
   scheduleReconnect() {
@@ -124,6 +151,7 @@ export class MqttConnectionManager {
 
   end() {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this.watchdogTimer) clearInterval(this.watchdogTimer);
     if (this.client) this.client.end(true);
 
     this.client = null;

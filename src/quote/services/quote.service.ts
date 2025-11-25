@@ -5,6 +5,7 @@ import { MainQuote } from '../schemas/main-quote.schema';
 import { QuoteDnseCacheService } from './quote-cache.service';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { QuoteRepository } from '../repositories/quote.repository';
 
 export class QuoteService {
   private readonly logger = new Logger(QuoteService.name);
@@ -15,6 +16,7 @@ export class QuoteService {
     @InjectModel(MainQuote.name)
     private readonly mainQuoteModel: Model<MainQuote>,
     private readonly quoteCacheService: QuoteDnseCacheService,
+    private readonly quoteRepo: QuoteRepository,
   ) {}
 
   mapQuoteToInternalFormat(quote: Partial<DnseQuote>): Partial<MainQuote> {
@@ -137,5 +139,17 @@ export class QuoteService {
     this.logger.debug(
       `Saved quote for ${symbol} (Dnse changed: ${isDnseChanged}, MainQuote changed: ${shouldSaveMain})`,
     );
+  }
+
+  async getByStockCode(code: string) {
+    return this.quoteRepo.getByStockCode(code);
+  }
+
+  async getByMarketID(query: {
+    Page: number;
+    PageSize: number;
+    Market_ID: string;
+  }) {
+    return this.quoteRepo.getByMarketID(query);
   }
 }
