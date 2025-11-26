@@ -93,7 +93,7 @@ export class MqttConnectionManager {
       this.startWatchdog();
 
       this.reconnectDelay = 5000;
-      this.logger.log('🚀 MQTT connected');
+      this.logger.log('MQTT connected');
     } catch (err) {
       const errMessage =
         err instanceof Error ? (err.stack ?? err.message) : String(err);
@@ -121,7 +121,7 @@ export class MqttConnectionManager {
       const gap = now - this.lastMessageTime;
 
       if (gap > this.MESSAGE_TIMEOUT) {
-        this.logger.warn(`⚠️ No MQTT data for ${gap / 1000}s`);
+        this.logger.warn(`No MQTT data for ${gap / 1000}s`);
 
         await this.alertService.send(
           'MQTT No Data Warning',
