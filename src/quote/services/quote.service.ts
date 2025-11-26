@@ -142,6 +142,10 @@ export class QuoteService {
   }
 
   async getByStockCode(code: string) {
+    const cached = this.quoteCacheService.get(code);
+    if (cached) return this.mapQuoteToInternalFormat(cached);
+
+    // fallback nếu chưa có cache
     return this.quoteRepo.getByStockCode(code);
   }
 

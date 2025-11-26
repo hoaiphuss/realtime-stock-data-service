@@ -32,3 +32,5 @@ export class MainQuote {
 }
 
 export const MainQuoteSchema = SchemaFactory.createForClass(MainQuote);
+
+MainQuoteSchema.index({ MarketID: 1, StockCode: 1 });
